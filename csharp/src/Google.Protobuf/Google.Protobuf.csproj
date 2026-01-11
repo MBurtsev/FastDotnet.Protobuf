@@ -36,6 +36,16 @@
     <DefineConstants>$(DefineConstants);GOOGLE_PROTOBUF_SUPPORT_FAST_STRING;GOOGLE_PROTOBUF_SUPPORT_GENERIC_SIZEOF;GOOGLE_PROTOBUF_SIMD</DefineConstants>
   </PropertyGroup>
 
+  <!--
+    FastDotnet.Protobuf extensions:
+    Our fast pools + fast ProtoReader/ProtoWriter are enabled only on modern targets (net50+).
+    On older targets (net45/netstandard1.1/netstandard2.0) we do not compile this code,
+    to avoid pulling newer APIs (Span/Encoding overloads) and keep compatibility simpler.
+  -->
+  <ItemGroup Condition=" '$(TargetFramework)' != 'net50' ">
+    <Compile Remove="Fast\**\*.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" Version="1.0.0"/>
     <!-- Needed for the net45 build to work on Unix. See https://github.com/dotnet/designs/pull/33 -->

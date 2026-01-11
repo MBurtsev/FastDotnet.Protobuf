@@ -15,6 +15,7 @@ In this project we needed:
 
 ### What we changed (high level)
 
+- **Updated .NET target/runtime to .NET 10 (`net10.0`)** for the generator and integration used by this repository.
 - **Fast runtime** in `csharp/src/Google.Protobuf/Fast/…`
   - `IFastMessage` interface for generated messages
   - `ProtoReader` / `ProtoWriter` optimized for our generated code

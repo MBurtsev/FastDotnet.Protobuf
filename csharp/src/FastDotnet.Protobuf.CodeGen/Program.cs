@@ -501,7 +501,6 @@ public static class Program
         sb.AppendLine("#nullable enable");
         sb.AppendLine();
         sb.AppendLine("using System.Collections.Generic;");
-        sb.AppendLine("using Google.Protobuf.Fast.Abstractions;");
         sb.AppendLine("using Google.Protobuf.Fast.Pooling;");
         sb.AppendLine("using Google.Protobuf.Fast.Proto;");
         sb.AppendLine();
@@ -510,7 +509,7 @@ public static class Program
         sb.AppendLine("/// <summary>");
         sb.Append("/// Fast DTO (protobuf wire format) for proto package ").Append(protoPackage).AppendLine(".");
         sb.AppendLine("/// </summary>");
-        sb.Append("public sealed class ").Append(messageCSharpName).Append(" : PooledObjectBase, IFastMessage").AppendLine();
+        sb.Append("public sealed class ").Append(messageCSharpName).Append(" : PooledObjectBase").AppendLine();
         sb.AppendLine("{");
 
         sb.Append("    static readonly ObjectPool<").Append(messageCSharpName).Append("> s_pool = new(128, static () => new ").Append(messageCSharpName).Append("());").AppendLine();
@@ -518,6 +517,7 @@ public static class Program
         sb.AppendLine("    // Primary API: RentValue/Return (explicit return).");
         sb.Append("    public static ").Append(messageCSharpName).Append(" Rent() => s_pool.Rent();").AppendLine();
         sb.Append("    public static void Return(").Append(messageCSharpName).Append(" value) => s_pool.Return(value);").AppendLine();
+        sb.AppendLine("    public override void Return() => s_pool.Return(this);");
         sb.AppendLine();
 
         sb.Append("    internal ").Append(messageCSharpName).AppendLine("() { }");
@@ -592,8 +592,9 @@ public static class Program
         }
 
         sb.AppendLine();
-        sb.AppendLine("    public void Clear()");
+        sb.AppendLine("    public override void Clear()");
         sb.AppendLine("    {");
+        sb.AppendLine("        SerializedSize = 0;");
         for (int i = 0; i < msg.Field.Count; i++)
         {
             var f = msg.Field[i];
@@ -644,7 +645,7 @@ public static class Program
         sb.AppendLine("    }");
         sb.AppendLine();
 
-        sb.AppendLine("    public void WriteTo(ref ProtoWriter writer)");
+        sb.AppendLine("    public override void WriteTo(ref ProtoWriter writer)");
         sb.AppendLine("    {");
         for (int i = 0; i < msg.Field.Count; i++)
         {
@@ -660,8 +661,9 @@ public static class Program
         sb.AppendLine("    }");
         sb.AppendLine();
 
-        sb.AppendLine("    public void MergeFrom(ref ProtoReader reader)");
+        sb.AppendLine("    public override void MergeFrom(ref ProtoReader reader)");
         sb.AppendLine("    {");
+        sb.AppendLine("        SerializedSize = reader.Length;");
         sb.AppendLine("        while (reader.TryReadTag(out var fieldNumber, out var wireType))");
         sb.AppendLine("        {");
         sb.AppendLine("            switch (fieldNumber)");
@@ -682,6 +684,52 @@ public static class Program
         sb.AppendLine("                    break;");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        
+        // ToLog(StringBuilder) — для логирования без аллокаций
+        sb.AppendLine("    public override void ToLog(System.Text.StringBuilder sb)");
+        sb.AppendLine("    {");
+        sb.Append("        sb.Append(\"{ \");").AppendLine();
+        var firstField = true;
+        for (int i = 0; i < msg.Field.Count; i++)
+        {
+            var f = msg.Field[i];
+            if (f.OneofIndex != 0 && !f.Proto3Optional)
+            {
+                continue;
+            }
+
+            var csName = SafeMemberName(ToPascal(f.Name), messageCSharpName);
+            
+            if (!firstField)
+            {
+                sb.AppendLine("        sb.Append(\", \");");
+            }
+            firstField = false;
+            
+            // Для repeated полей выводим Count
+            if (f.Label == FieldDescriptorProto.Types.Label.Repeated)
+            {
+                sb.Append("        sb.Append(\"").Append(csName).Append(": [\"); sb.Append(").Append(csName).Append(".Count); sb.Append(\"]\");").AppendLine();
+            }
+            // Для строк выводим в кавычках
+            else if (f.Type == FieldDescriptorProto.Types.Type.String)
+            {
+                sb.Append("        sb.Append(\"").Append(csName).Append(": \\\"\"); sb.Append(").Append(csName).Append(" ?? \"\"); sb.Append(\"\\\"\");").AppendLine();
+            }
+            // Для вложенных сообщений вызываем ToLog рекурсивно
+            else if (f.Type == FieldDescriptorProto.Types.Type.Message)
+            {
+                sb.Append("        sb.Append(\"").Append(csName).Append(": \"); if (").Append(csName).Append(" != null) ").Append(csName).Append(".ToLog(sb); else sb.Append(\"null\");").AppendLine();
+            }
+            // Для остальных просто значение
+            else
+            {
+                sb.Append("        sb.Append(\"").Append(csName).Append(": \"); sb.Append(").Append(csName).Append(");").AppendLine();
+            }
+        }
+        sb.AppendLine("        sb.Append(\" }\");");
         sb.AppendLine("    }");
         sb.AppendLine("}");
 

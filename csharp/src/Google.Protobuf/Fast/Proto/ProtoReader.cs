@@ -18,6 +18,9 @@ public ref struct ProtoReader
         _pos  = 0;
     }
 
+    /// <summary>Returns the total length of the underlying span (serialized message size)</summary>
+    public int Length => _span.Length;
+
     public bool TryReadTag(out int fieldNumber, out WireType wireType)
     {
         if (_pos >= _span.Length)

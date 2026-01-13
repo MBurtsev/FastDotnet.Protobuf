@@ -1,6 +1,6 @@
 using System;
 using System.Buffers;
-using Google.Protobuf.Fast.Abstractions;
+using Google.Protobuf.Fast.Pooling;
 
 namespace Google.Protobuf.Fast.Proto;
 
@@ -14,7 +14,7 @@ public static class FastMessageCodec
     [ThreadStatic]
     static ArrayBufferWriter<byte> s_buffer;
 
-    public static void WriteMessage(ref ProtoWriter writer, IFastMessage message)
+    public static void WriteMessage(ref ProtoWriter writer, PooledObjectBase message)
     {
         var buffer = s_buffer ??= new ArrayBufferWriter<byte>(256);
         buffer.Clear();

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
-using Google.Protobuf.Fast.Abstractions;
 
 namespace Google.Protobuf.Fast.Pooling;
 
@@ -67,11 +66,21 @@ public sealed class ObjectPool<T> where T : PooledObjectBase
             return;
         }
 
-        // If it is a fast message, reset it for safe reuse.
-        // This avoids requiring a custom reset delegate on the pool itself.
-        if (value is IFastMessage msg)
+        // Pool protection mechanism: if _isInPool < 0, the object is protected from returning.
+        // Each Return() increments _isInPool by 1. When _isInPool reaches 1, the object is returned.
+        // Example with PoolProtectOneTime():
+        //   _isInPool = -1 (protected)
+        //   First Return():  Add(-1, 1) = 0, 0 <= 0 → skip return, object stays available
+        //   Second Return(): _isInPool = 0 < 0 is false → skip this block → return to pool
+        if (value._isInPool < 0)
         {
-            msg.Clear();
+            var valueInPool = Interlocked.Add(ref value._isInPool, 1);
+
+            // Still protected (negative or zero) — do not return to pool yet
+            if (valueInPool <= 0)
+            {
+                return;
+            }
         }
 
         // Prevent double-return.
@@ -84,6 +93,9 @@ public sealed class ObjectPool<T> where T : PooledObjectBase
 
             return;
         }
+
+        // Reset the object for safe reuse (Clear is abstract in PooledObjectBase).
+        value.Clear();
 
         _queue.Enqueue(value);
 

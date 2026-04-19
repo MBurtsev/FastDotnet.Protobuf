@@ -124,7 +124,9 @@ public ref struct ProtoReader
                 _pos += 4;
                 return;
             default:
-                throw new NotSupportedException("WireType " + wireType + " is not supported");
+                // Deprecated groups (StartGroup/EndGroup) — terminate parsing.
+                _pos = _span.Length;
+                return;
         }
     }
 
